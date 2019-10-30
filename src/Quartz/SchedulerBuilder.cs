@@ -406,6 +406,25 @@ namespace Quartz
 
             return adoProviderOptions;
         }
+        /// <summary>
+        /// use Dameng database, by weifj
+        /// </summary>
+        /// <param name="options"></param>
+        /// <param name="configurer"></param>
+        /// <returns></returns>
+        public static SchedulerBuilder.AdoProviderOptions UseDm(
+           this SchedulerBuilder.PersistentStoreOptions options,
+           Action<SchedulerBuilder.AdoProviderOptions> configurer)
+        {
+            options.SetProperty("quartz.jobStore.driverDelegateType", typeof(DmDelegate).AssemblyQualifiedNameWithoutVersion());
+            options.SetProperty("quartz.jobStore.dataSource", SchedulerBuilder.AdoProviderOptions.DefaultDataSourceName);
+            options.SetProperty($"quartz.dataSource.{SchedulerBuilder.AdoProviderOptions.DefaultDataSourceName}.provider", "Dameng");
+
+            var adoProviderOptions = new SchedulerBuilder.AdoProviderOptions(options);
+            configurer.Invoke(adoProviderOptions);
+
+            return adoProviderOptions;
+        }
 
         public static SchedulerBuilder.AdoProviderOptions UseSQLite(
             this SchedulerBuilder.PersistentStoreOptions options,

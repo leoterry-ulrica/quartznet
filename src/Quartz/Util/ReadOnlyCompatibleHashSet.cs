@@ -9,7 +9,7 @@ namespace Quartz.Util
     /// </summary>
     [Serializable]
     // ReSharper disable once RedundantExtendsListEntry
-    internal class ReadOnlyCompatibleHashSet<T> : HashSet<T>, IReadOnlyCollection<T>
+    public class ReadOnlyCompatibleHashSet<T> : HashSet<T>, IReadOnlyCollection<T>
     {
         public ReadOnlyCompatibleHashSet()
         {
