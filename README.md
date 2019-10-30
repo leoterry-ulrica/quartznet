@@ -14,6 +14,8 @@ This is the README file for Quartz.NET, .NET port of Java Quartz. It supports .N
 Quartz.NET is an opensource project aimed at creating a
 free-for-commercial use Job Scheduler, with 'enterprise' features.
 
+Support：Firebird、Mysql_innodb、SqlServer、Sqlite、Oracle、postgresql、达梦
+
 ## Building
 
 * You can build the code by running `build.cmd` (Windows) or `build.sh` (*nix platform)
