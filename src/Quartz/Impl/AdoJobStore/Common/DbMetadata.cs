@@ -51,7 +51,7 @@ namespace Quartz.Impl.AdoJobStore.Common
                 ParameterDbTypeProperty = ParameterType.GetProperty(parameterDbTypePropertyName);
                 if (ParameterDbTypeProperty == null)
                 {
-                    throw new ArgumentException($"Couldn't parse parameter db type for database type '{ProductName}'");
+                    throw new ArgumentException($"ParameterType:{ParameterType.ToString()},parameterDbTypePropertyName:{parameterDbTypePropertyName},Couldn't parse parameter db type for database type '{ProductName}'");
                 }
             }
         }
