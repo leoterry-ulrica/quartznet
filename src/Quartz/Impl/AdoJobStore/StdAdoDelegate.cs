@@ -19,6 +19,13 @@
 
 #endregion
 
+using Newtonsoft.Json;
+using Quartz.Impl.AdoJobStore.Common;
+using Quartz.Impl.Matchers;
+using Quartz.Impl.Triggers;
+using Quartz.Logging;
+using Quartz.Spi;
+using Quartz.Util;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -31,13 +38,6 @@ using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-
-using Quartz.Impl.AdoJobStore.Common;
-using Quartz.Impl.Matchers;
-using Quartz.Impl.Triggers;
-using Quartz.Logging;
-using Quartz.Spi;
-using Quartz.Util;
 
 namespace Quartz.Impl.AdoJobStore
 {
@@ -129,7 +129,7 @@ namespace Quartz.Impl.AdoJobStore
                             try
                             {
                                 Type trigDelClass = typeLoadHelper.LoadType(typeName);
-                                AddTriggerPersistenceDelegate((ITriggerPersistenceDelegate) Activator.CreateInstance(trigDelClass));
+                                AddTriggerPersistenceDelegate((ITriggerPersistenceDelegate)Activator.CreateInstance(trigDelClass));
                             }
                             catch (Exception e)
                             {
@@ -575,10 +575,15 @@ namespace Quartz.Impl.AdoJobStore
             IJobDetail job,
             CancellationToken cancellationToken = default)
         {
-            byte[] baos = null;
+            //byte[] baos = null;
+            //if (job.JobDataMap.Count > 0)
+            //{
+            //    baos = SerializeJobData(job.JobDataMap);
+            //}
+            string baos = "";
             if (job.JobDataMap.Count > 0)
             {
-                baos = SerializeJobData(job.JobDataMap);
+                baos = JsonConvert.SerializeObject(job.JobDataMap);
             }
 
             int insertResult;
@@ -595,15 +600,15 @@ namespace Quartz.Impl.AdoJobStore
                 AddCommandParameter(cmd, "jobRequestsRecovery", GetDbBooleanValue(job.RequestsRecovery));
 
                 string paramName = "jobDataMap";
-                if (baos != null)
-                {
-                    AddCommandParameter(cmd, paramName, baos, DbProvider.Metadata.DbBinaryType);
-                }
-                else
-                {
-                    AddCommandParameter(cmd, paramName, null, DbProvider.Metadata.DbBinaryType);
-                }
-
+                //if (baos != null)
+                //{
+                //    AddCommandParameter(cmd, paramName, baos, DbProvider.Metadata.DbBinaryType);
+                //}
+                //else
+                //{
+                //    AddCommandParameter(cmd, paramName, null, DbProvider.Metadata.DbBinaryType);
+                //}
+                AddCommandParameter(cmd, paramName, baos);
                 insertResult = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -671,7 +676,7 @@ namespace Quartz.Impl.AdoJobStore
         /// <returns></returns>
         public virtual object GetDbTimeSpanValue(TimeSpan? timeSpanValue)
         {
-            return timeSpanValue != null ? (long?) timeSpanValue.Value.TotalMilliseconds : null;
+            return timeSpanValue != null ? (long?)timeSpanValue.Value.TotalMilliseconds : null;
         }
 
         /// <summary>
@@ -715,8 +720,12 @@ namespace Quartz.Impl.AdoJobStore
             IJobDetail job,
             CancellationToken cancellationToken = default)
         {
-            byte[] baos = SerializeJobData(job.JobDataMap);
-
+            //byte[] baos = SerializeJobData(job.JobDataMap);
+            string baos = "";
+            if (job.JobDataMap.Count > 0)
+            {
+                baos = JsonConvert.SerializeObject(job.JobDataMap);
+            }
             using (var cmd = PrepareCommand(conn, ReplaceTablePrefix(SqlUpdateJobDetail)))
             {
                 AddCommandParameter(cmd, "jobDescription", job.Description);
@@ -725,7 +734,8 @@ namespace Quartz.Impl.AdoJobStore
                 AddCommandParameter(cmd, "jobVolatile", GetDbBooleanValue(job.ConcurrentExecutionDisallowed));
                 AddCommandParameter(cmd, "jobStateful", GetDbBooleanValue(job.PersistJobDataAfterExecution));
                 AddCommandParameter(cmd, "jobRequestsRecovery", GetDbBooleanValue(job.RequestsRecovery));
-                AddCommandParameter(cmd, "jobDataMap", baos, DbProvider.Metadata.DbBinaryType);
+                //AddCommandParameter(cmd, "jobDataMap", baos, DbProvider.Metadata.DbBinaryType);
+                AddCommandParameter(cmd, "jobDataMap", baos);
                 AddCommandParameter(cmd, "jobName", job.Key.Name);
                 AddCommandParameter(cmd, "jobGroup", job.Key.Group);
 
@@ -811,7 +821,7 @@ namespace Quartz.Impl.AdoJobStore
                 object o = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
                 if (o != null)
                 {
-                    return (bool) o;
+                    return (bool)o;
                 }
 
                 return false;
@@ -858,11 +868,16 @@ namespace Quartz.Impl.AdoJobStore
             IJobDetail job,
             CancellationToken cancellationToken = default)
         {
-            byte[] baos = SerializeJobData(job.JobDataMap);
-
+            //byte[] baos = SerializeJobData(job.JobDataMap);
+            string baos = "";
+            if (job.JobDataMap.Count > 0)
+            {
+                baos = JsonConvert.SerializeObject(job.JobDataMap);
+            }
             using (var cmd = PrepareCommand(conn, ReplaceTablePrefix(SqlUpdateJobData)))
             {
-                AddCommandParameter(cmd, "jobDataMap", baos, DbProvider.Metadata.DbBinaryType);
+                //AddCommandParameter(cmd, "jobDataMap", baos, DbProvider.Metadata.DbBinaryType);
+                AddCommandParameter(cmd, "jobDataMap", baos);
                 AddCommandParameter(cmd, "jobName", job.Key.Name);
                 AddCommandParameter(cmd, "jobGroup", job.Key.Group);
 
@@ -903,8 +918,13 @@ namespace Quartz.Impl.AdoJobStore
                         job.Durable = GetBooleanFromDbValue(rs[ColumnIsDurable]);
                         job.RequestsRecovery = GetBooleanFromDbValue(rs[ColumnRequestsRecovery]);
 
-                        IDictionary map = await ReadMapFromReader(rs, 6).ConfigureAwait(false);
-
+                        //IDictionary map = await ReadMapFromReader(rs, 6).ConfigureAwait(false);
+                        IDictionary map = null;
+                        string jobdata = rs.GetString(ColumnJobDataMap);
+                        if (!string.IsNullOrEmpty(jobdata))
+                        {
+                            map = JsonConvert.DeserializeObject<IDictionary>(jobdata);
+                        }
                         if (map != null)
                         {
                             job.JobDataMap = new JobDataMap(map);
@@ -987,7 +1007,7 @@ namespace Quartz.Impl.AdoJobStore
         {
             using (var cmd = PrepareCommand(conn, ReplaceTablePrefix(SqlSelectNumJobs)))
             {
-                return (int) await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                return (int)await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -1117,10 +1137,16 @@ namespace Quartz.Impl.AdoJobStore
             IJobDetail jobDetail,
             CancellationToken cancellationToken = default)
         {
-            byte[] baos = null;
+
+            //byte[] baos = null;
+            //if (trigger.JobDataMap.Count > 0)
+            //{
+            //    baos = SerializeJobData(trigger.JobDataMap);
+            //}
+            string baos = "";
             if (trigger.JobDataMap.Count > 0)
             {
-                baos = SerializeJobData(trigger.JobDataMap);
+                baos = JsonConvert.SerializeObject(trigger.JobDataMap);
             }
 
             using (var cmd = PrepareCommand(conn, ReplaceTablePrefix(SqlInsertTrigger)))
@@ -1148,14 +1174,15 @@ namespace Quartz.Impl.AdoJobStore
                 AddCommandParameter(cmd, "triggerMisfireInstruction", trigger.MisfireInstruction);
 
                 paramName = "triggerJobJobDataMap";
-                if (baos != null)
-                {
-                    AddCommandParameter(cmd, paramName, baos, DbProvider.Metadata.DbBinaryType);
-                }
-                else
-                {
-                    AddCommandParameter(cmd, paramName, null, DbProvider.Metadata.DbBinaryType);
-                }
+                //if (baos != null)
+                //{
+                //    AddCommandParameter(cmd, paramName, baos, DbProvider.Metadata.DbBinaryType);
+                //}
+                //else
+                //{
+                //    AddCommandParameter(cmd, paramName, null, DbProvider.Metadata.DbBinaryType);
+                //}
+                AddCommandParameter(cmd, paramName, baos);
                 AddCommandParameter(cmd, "triggerPriority", trigger.Priority);
 
                 int insertResult = await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -1188,11 +1215,16 @@ namespace Quartz.Impl.AdoJobStore
             using (var cmd = PrepareCommand(conn, ReplaceTablePrefix(SqlInsertBlobTrigger)))
             {
                 // update the blob
-                byte[] buf = SerializeObject(trigger);
+                //byte[] buf = SerializeObject(trigger);
+                string buf = "";
+                if (trigger != null)
+                {
+                    buf = JsonConvert.SerializeObject(trigger);
+                }
                 AddCommandParameter(cmd, "triggerName", trigger.Key.Name);
                 AddCommandParameter(cmd, "triggerGroup", trigger.Key.Group);
-                AddCommandParameter(cmd, "blob", buf, DbProvider.Metadata.DbBinaryType);
-
+                //AddCommandParameter(cmd, "blob", buf, DbProvider.Metadata.DbBinaryType);
+                AddCommandParameter(cmd, "blob", buf);
                 return await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
         }
@@ -1215,12 +1247,19 @@ namespace Quartz.Impl.AdoJobStore
         {
             // save some clock cycles by unnecessarily writing job data blob ...
             bool updateJobData = trigger.JobDataMap.Dirty;
-            byte[] baos = null;
+            //byte[] baos = null;
+            //if (updateJobData)
+            //{
+            //    baos = SerializeJobData(trigger.JobDataMap);
+            //}
+            string baos = "";
             if (updateJobData)
             {
-                baos = SerializeJobData(trigger.JobDataMap);
+                if (trigger != null && trigger.JobDataMap.Count > 0)
+                {
+                    baos = JsonConvert.SerializeObject(trigger.JobDataMap);
+                }
             }
-
             DbCommand cmd;
 
             if (updateJobData)
@@ -1258,14 +1297,15 @@ namespace Quartz.Impl.AdoJobStore
             const string JobDataMapParameter = "triggerJobJobDataMap";
             if (updateJobData)
             {
-                if (baos != null)
-                {
-                    AddCommandParameter(cmd, JobDataMapParameter, baos, DbProvider.Metadata.DbBinaryType);
-                }
-                else
-                {
-                    AddCommandParameter(cmd, JobDataMapParameter, null, DbProvider.Metadata.DbBinaryType);
-                }
+                //if (baos != null)
+                //{
+                //    AddCommandParameter(cmd, JobDataMapParameter, baos, DbProvider.Metadata.DbBinaryType);
+                //}
+                //else
+                //{
+                //    AddCommandParameter(cmd, JobDataMapParameter, null, DbProvider.Metadata.DbBinaryType);
+                //}
+                AddCommandParameter(cmd, JobDataMapParameter, baos);
                 AddCommandParameter(cmd, "triggerName", trigger.Key.Name);
                 AddCommandParameter(cmd, "triggerGroup", trigger.Key.Group);
             }
@@ -1304,9 +1344,14 @@ namespace Quartz.Impl.AdoJobStore
             using (var cmd = PrepareCommand(conn, ReplaceTablePrefix(SqlUpdateBlobTrigger)))
             {
                 // update the blob
-                byte[] os = SerializeObject(trigger);
-
-                AddCommandParameter(cmd, "blob", os, DbProvider.Metadata.DbBinaryType);
+                //byte[] os = SerializeObject(trigger);
+                string os = "";
+                if (trigger != null)
+                {
+                    os = JsonConvert.SerializeObject(trigger);
+                }
+                //AddCommandParameter(cmd, "blob", os, DbProvider.Metadata.DbBinaryType);
+                AddCommandParameter(cmd, "blob", os);
                 AddCommandParameter(cmd, "triggerName", trigger.Key.Name);
                 AddCommandParameter(cmd, "triggerGroup", trigger.Key.Group);
 
@@ -1803,7 +1848,7 @@ namespace Quartz.Impl.AdoJobStore
             int misFireInstr;
             int priority;
 
-            IDictionary map;
+            IDictionary map = null;
 
             DateTimeOffset? nextFireTimeUtc;
             DateTimeOffset? previousFireTimeUtc;
@@ -1829,9 +1874,12 @@ namespace Quartz.Impl.AdoJobStore
                     calendarName = rs.GetString(ColumnCalendarName);
                     misFireInstr = rs.GetInt32(ColumnMifireInstruction);
                     priority = rs.GetInt32(ColumnPriority);
-
-                    map = await ReadMapFromReader(rs, 11).ConfigureAwait(false);
-
+                    //map = await ReadMapFromReader(rs, 11).ConfigureAwait(false);
+                    string jobdata = rs.GetString(ColumnJobDataMap);
+                    if (!string.IsNullOrEmpty(jobdata))
+                    {
+                        map = JsonConvert.DeserializeObject<IDictionary>(jobdata);
+                    }
                     nextFireTimeUtc = GetDateTimeFromDbValue(rs[ColumnNextFireTime]);
                     previousFireTimeUtc = GetDateTimeFromDbValue(rs[ColumnPreviousFireTime]);
                     startTimeUtc = GetDateTimeFromDbValue(rs[ColumnStartTime]) ?? DateTimeOffset.MinValue;
@@ -1896,7 +1944,7 @@ namespace Quartz.Impl.AdoJobStore
                     tb.ClearDirty();
                 }
 
-                trigger = (IOperableTrigger) tb.Build();
+                trigger = (IOperableTrigger)tb.Build();
 
                 trigger.MisfireInstruction = misFireInstr;
                 trigger.SetNextFireTimeUtc(nextFireTimeUtc);
@@ -1956,7 +2004,13 @@ namespace Quartz.Impl.AdoJobStore
                 {
                     if (await rs.ReadAsync(cancellationToken).ConfigureAwait(false))
                     {
-                        IDictionary map = await ReadMapFromReader(rs, 0).ConfigureAwait(false);
+                        //IDictionary map = await ReadMapFromReader(rs, 0).ConfigureAwait(false);
+                        IDictionary map = null;
+                        string jobdata = rs.GetString(ColumnBlob);
+                        if (!string.IsNullOrEmpty(jobdata))
+                        {
+                            map = JsonConvert.DeserializeObject<IDictionary>(jobdata);
+                        }
                         if (map != null)
                         {
                             return map as JobDataMap ?? new JobDataMap(map);
@@ -2086,7 +2140,7 @@ namespace Quartz.Impl.AdoJobStore
                     List<string> list = new List<string>();
                     while (await rs.ReadAsync(cancellationToken).ConfigureAwait(false))
                     {
-                        list.Add((string) rs[0]);
+                        list.Add((string)rs[0]);
                     }
 
                     return list;
@@ -2107,7 +2161,7 @@ namespace Quartz.Impl.AdoJobStore
                     List<string> list = new List<string>();
                     while (await rs.ReadAsync(cancellationToken).ConfigureAwait(false))
                     {
-                        list.Add((string) rs[0]);
+                        list.Add((string)rs[0]);
                     }
 
                     return list;
@@ -2302,13 +2356,17 @@ namespace Quartz.Impl.AdoJobStore
             ICalendar calendar,
             CancellationToken cancellationToken = default)
         {
-            byte[] baos = SerializeObject(calendar);
-
+            //byte[] baos = SerializeObject(calendar);
+            string baos = "";
+            if (calendar != null)
+            {
+                baos = JsonConvert.SerializeObject(calendar);
+            }
             using (var cmd = PrepareCommand(conn, ReplaceTablePrefix(SqlInsertCalendar)))
             {
                 AddCommandParameter(cmd, "calendarName", calendarName);
-                AddCommandParameter(cmd, "calendar", baos, DbProvider.Metadata.DbBinaryType);
-
+                //AddCommandParameter(cmd, "calendar", baos, DbProvider.Metadata.DbBinaryType);
+                AddCommandParameter(cmd, "calendar", baos);
                 return await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
         }
@@ -2328,11 +2386,16 @@ namespace Quartz.Impl.AdoJobStore
             ICalendar calendar,
             CancellationToken cancellationToken = default)
         {
-            byte[] baos = SerializeObject(calendar);
-
+            //byte[] baos = SerializeObject(calendar);
+            string baos = "";
+            if (calendar != null)
+            {
+                baos = JsonConvert.SerializeObject(calendar);
+            }
             using (var cmd = PrepareCommand(conn, ReplaceTablePrefix(SqlUpdateCalendar)))
             {
-                AddCommandParameter(cmd, "calendar", baos, DbProvider.Metadata.DbBinaryType);
+                //AddCommandParameter(cmd, "calendar", baos, DbProvider.Metadata.DbBinaryType);
+                AddCommandParameter(cmd, "calendar", baos);
                 AddCommandParameter(cmd, "calendarName", calendarName);
 
                 return await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -2490,7 +2553,7 @@ namespace Quartz.Impl.AdoJobStore
                     List<string> list = new List<string>();
                     while (await rs.ReadAsync(cancellationToken).ConfigureAwait(false))
                     {
-                        list.Add((string) rs[0]);
+                        list.Add((string)rs[0]);
                     }
                     return list;
                 }
@@ -2568,7 +2631,7 @@ namespace Quartz.Impl.AdoJobStore
                 {
                     while (await rs.ReadAsync(cancellationToken).ConfigureAwait(false) && nextTriggers.Count < maxCount)
                     {
-                        nextTriggers.Add(new TriggerKey((string) rs[ColumnTriggerName], (string) rs[ColumnTriggerGroup]));
+                        nextTriggers.Add(new TriggerKey((string)rs[ColumnTriggerName], (string)rs[ColumnTriggerGroup]));
                     }
                 }
                 return nextTriggers;
@@ -3032,7 +3095,7 @@ namespace Quartz.Impl.AdoJobStore
             {
                 cachedQueries[query] = result = AdoJobStoreUtil.ReplaceTablePrefix(query, tablePrefix, SchedulerNameLiteral);
             }
-            
+
             return result;
         }
 
@@ -3138,7 +3201,7 @@ namespace Quartz.Impl.AdoJobStore
                 data[key] = properties[key];
             }
 
-            return (IDictionary) data;
+            return (IDictionary)data;
         }
 
         /// <summary>
@@ -3158,7 +3221,7 @@ namespace Quartz.Impl.AdoJobStore
                                           "when the 'useProperties' property is set. " +
                                           " Key of offending value: " + key);
                 }
-                properties[key] = (string) val;
+                properties[key] = (string)val;
             }
             return properties;
         }
@@ -3243,7 +3306,7 @@ namespace Quartz.Impl.AdoJobStore
                 {
                     while (await dr.ReadAsync(cancellationToken).ConfigureAwait(false))
                     {
-                        string groupName = (string) dr[ColumnTriggerGroup];
+                        string groupName = (string)dr[ColumnTriggerGroup];
                         retValue.Add(groupName);
                     }
                 }
