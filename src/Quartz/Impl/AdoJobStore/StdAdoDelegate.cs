@@ -20,6 +20,7 @@
 #endregion
 
 using Newtonsoft.Json;
+
 using Quartz.Impl.AdoJobStore.Common;
 using Quartz.Impl.Matchers;
 using Quartz.Impl.Triggers;
